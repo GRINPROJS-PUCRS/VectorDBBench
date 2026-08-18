@@ -65,6 +65,7 @@ class DB(Enum):
     SeekDB = "SeekDB"
     VolcMySQL = "VolcMySQL"
     Adbpg = "AnalyticDB for PostgreSQL"
+    Oracle = "Oracle"
 
     @property
     def init_cls(self) -> type[VectorDB]:  # noqa: PLR0911, PLR0912, C901, PLR0915
@@ -280,6 +281,11 @@ class DB(Enum):
             from .adbpg.adbpg import Adbpg
 
             return Adbpg
+
+        if self == DB.Oracle:
+            from .oracle.oracle import Oracle
+
+            return Oracle
 
         msg = f"Unknown DB: {self.name}"
         raise ValueError(msg)
@@ -498,6 +504,11 @@ class DB(Enum):
             from .adbpg.config import AdbpgConfig
 
             return AdbpgConfig
+
+        if self == DB.Oracle:
+            from .oracle.config import OracleConfig
+
+            return OracleConfig
 
         msg = f"Unknown DB: {self.name}"
         raise ValueError(msg)
@@ -718,6 +729,15 @@ class DB(Enum):
             from .adbpg.config import AdbpgIndexConfig
 
             return AdbpgIndexConfig
+
+        if self == DB.Oracle:
+            from .oracle.config import OracleFlatConfig, OracleHNSWConfig, OracleIVFConfig
+
+            return {
+                IndexType.Flat: OracleFlatConfig,
+                IndexType.HNSW: OracleHNSWConfig,
+                IndexType.IVFFlat: OracleIVFConfig,
+            }.get(index_type, OracleFlatConfig)
 
         # DB.Pinecone, DB.Redis
         return EmptyDBCaseConfig
