@@ -47,13 +47,16 @@ class OracleConfig(DBConfig):
 
 
 def parse_oracle_metric(metric_type: MetricType | None) -> str:
+    if metric_type is None:
+        return "COSINE"
     if metric_type == MetricType.L2:
         return "EUCLIDEAN"
     if metric_type == MetricType.COSINE:
         return "COSINE"
     if metric_type in {MetricType.IP, MetricType.DP}:
         return "DOT"
-    return "COSINE"
+    msg = f"Unsupported metric type for Oracle AI Vector Search: {metric_type}"
+    raise ValueError(msg)
 
 
 class OracleHNSWConfig(BaseModel, DBCaseConfig):
