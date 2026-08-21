@@ -3357,15 +3357,41 @@ OracleLoadingConfig = [
     CaseConfigParamInput_MinVectorsPerPartition_Oracle,
 ]
 
+CaseConfigParamInput_EFSearch_Oracle = CaseConfigInput(
+    label=CaseConfigParamType.ef_search,
+    inputHelp="Fixed-effort search (EFSEARCH); 0 keeps adaptive TARGET ACCURACY",
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 65535,
+        "value": 0,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None) == IndexType.HNSW.value,
+)
+
+CaseConfigParamInput_NeighborPartitionProbes_Oracle = CaseConfigInput(
+    label=CaseConfigParamType.neighbor_partition_probes,
+    inputHelp="Fixed-effort search (NEIGHBOR PARTITION PROBES); 0 keeps adaptive TARGET ACCURACY",
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 65535,
+        "value": 0,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None) == IndexType.IVFFlat.value,
+)
+
 OraclePerformanceConfig = [
     CaseConfigParamInput_IndexType_Oracle,
     CaseConfigParamInput_Neighbors_Oracle,
     CaseConfigParamInput_EFConstruction_Oracle,
     CaseConfigParamInput_IndexTargetAccuracy_Oracle,
     CaseConfigParamInput_SearchTargetAccuracy_Oracle,
+    CaseConfigParamInput_EFSearch_Oracle,
     CaseConfigParamInput_NeighborPartitions_Oracle,
     CaseConfigParamInput_SamplesPerPartition_Oracle,
     CaseConfigParamInput_MinVectorsPerPartition_Oracle,
+    CaseConfigParamInput_NeighborPartitionProbes_Oracle,
 ]
 
 # Map DB to config

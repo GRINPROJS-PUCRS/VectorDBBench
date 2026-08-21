@@ -116,6 +116,19 @@ class OracleHNSWTypedDict(OracleCommonTypedDict):
             help="Search-time TARGET ACCURACY (1-100)",
         ),
     ]
+    ef_search: Annotated[
+        int | None,
+        click.option(
+            "--ef-search",
+            type=int,
+            default=None,
+            help=(
+                "Fixed-effort search via WITH TARGET ACCURACY PARAMETERS "
+                "(EFSEARCH n) — pgvector ef_search analogue. Unset keeps the "
+                "adaptive --search-target-accuracy behaviour."
+            ),
+        ),
+    ]
 
 
 class OracleIVFTypedDict(OracleCommonTypedDict):
@@ -169,6 +182,19 @@ class OracleIVFTypedDict(OracleCommonTypedDict):
             help="Search-time TARGET ACCURACY (1-100)",
         ),
     ]
+    neighbor_partition_probes: Annotated[
+        int | None,
+        click.option(
+            "--neighbor-partition-probes",
+            type=int,
+            default=None,
+            help=(
+                "Fixed-effort search via WITH TARGET ACCURACY PARAMETERS "
+                "(NEIGHBOR PARTITION PROBES n) — pgvector probes analogue. "
+                "Unset keeps the adaptive --search-target-accuracy behaviour."
+            ),
+        ),
+    ]
 
 
 @cli.command()
@@ -213,6 +239,7 @@ def oraclehnsw(**parameters: Unpack[OracleHNSWTypedDict]):
             ef_construction=parameters["ef_construction"],
             index_target_accuracy=parameters["index_target_accuracy"],
             search_target_accuracy=parameters["search_target_accuracy"],
+            ef_search=parameters["ef_search"],
         ),
         **parameters,
     )
@@ -240,6 +267,7 @@ def oracleivf(**parameters: Unpack[OracleIVFTypedDict]):
             min_vectors_per_partition=parameters["min_vectors_per_partition"],
             index_target_accuracy=parameters["index_target_accuracy"],
             search_target_accuracy=parameters["search_target_accuracy"],
+            neighbor_partition_probes=parameters["neighbor_partition_probes"],
         ),
         **parameters,
     )
