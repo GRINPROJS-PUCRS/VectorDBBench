@@ -2,8 +2,9 @@ import array
 import hashlib
 import logging
 import re
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 import oracledb
 
@@ -11,7 +12,6 @@ from vectordb_bench.backend.filter import Filter, FilterOp
 from vectordb_bench.backend.payload import PayloadProfile
 
 from ..api import IndexType, VectorDB
-from .config import OracleConfigDict, parse_oracle_metric
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def get_unique_index_name(table_name: str, index_type_str: str) -> str:
     suffix = f"_{index_type_str.lower()}_idx"
     max_prefix_len = 128 - len(suffix) - 9
     short_table = table_name[:max_prefix_len] if max_prefix_len > 0 else "vdb"
-    h = hashlib.md5(table_name.encode("utf-8")).hexdigest()[:8]
+    h = hashlib.md5(table_name.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     index_name = f"{short_table}_{h}{suffix}"
     return validate_sql_identifier(index_name)
 
@@ -153,7 +153,7 @@ class Oracle(VectorDB):
             if e.args and hasattr(e.args[0], "code") and e.args[0].code == 955:
                 log.info(f"Table {self.table_name} already exists. Reusing existing table.")
             else:
-                raise e
+                raise
 
     def insert_embeddings(
         self,
@@ -174,7 +174,8 @@ class Oracle(VectorDB):
             for i, doc_id in enumerate(metadata):
                 vec = embeddings[i]
                 if len(vec) != self.dim:
-                    raise ValueError(f"Vector dimension mismatch: expected {self.dim}, got {len(vec)}")
+                    msg = f"Vector dimension mismatch: expected {self.dim}, got {len(vec)}"
+                    raise ValueError(msg)  # noqa: TRY301
                 vec_arr = array.array("f", vec)
                 if self.with_scalar_labels:
                     batch_data.append((int(doc_id), vec_arr, str(labels_data[i])))
@@ -230,8 +231,8 @@ class Oracle(VectorDB):
             row = self.cursor.fetchone()
             if row and row[0] == "0":
                 log.warning("Oracle vector_memory_size is set to 0. In-memory vector index creation may fail.")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Could not check vector_memory_size (insufficient privileges?): {e}")
 
         metric = index_params.get("metric", "COSINE")
         index_name = get_unique_index_name(self.table_name, index_type)
@@ -278,8 +279,9 @@ class Oracle(VectorDB):
             self.conn.commit()
             log.info(f"Oracle vector index {index_name} created successfully.")
         except oracledb.DatabaseError as e:
-            log.error(f"Failed to create Oracle vector index ({index_name}): {e}")
-            raise RuntimeError(f"Oracle vector index creation failed: {e}") from e
+            log.exception(f"Failed to create Oracle vector index ({index_name})")
+            msg = f"Oracle vector index creation failed: {e}"
+            raise RuntimeError(msg) from e
 
     def search_embedding(
         self,
@@ -312,7 +314,7 @@ class Oracle(VectorDB):
             binds[self.filter_bind_key] = self.filter_bind_val
 
         index_type = (
-            getattr(self.case_config, "index_param", lambda: {})().get("index_type")
+            getattr(self.case_config, "index_param", dict)().get("index_type")
             if self.case_config
             else None
         )

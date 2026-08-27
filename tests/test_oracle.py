@@ -3,7 +3,6 @@ import logging
 import pytest
 from pydantic import SecretStr
 
-from vectordb_bench.backend.clients import DB
 from vectordb_bench.backend.clients.api import IndexType, MetricType
 from vectordb_bench.backend.filter import Filter, FilterOp, IntFilter, LabelFilter
 from vectordb_bench.backend.clients.oracle.config import (
@@ -11,6 +10,7 @@ from vectordb_bench.backend.clients.oracle.config import (
     OracleFlatConfig,
     OracleHNSWConfig,
     OracleIVFConfig,
+    parse_oracle_metric,
 )
 from vectordb_bench.backend.clients.oracle.oracle import (
     Oracle,
@@ -45,6 +45,16 @@ def test_oracle_config():
     assert d["password"] == "vdbbench_pass"
     assert d["collection_name"] == "test_col_123"
     assert "SecretStr" not in str(d["password"])
+
+
+def test_parse_oracle_metric():
+    assert parse_oracle_metric(None) == "COSINE"
+    assert parse_oracle_metric(MetricType.COSINE) == "COSINE"
+    assert parse_oracle_metric(MetricType.L2) == "EUCLIDEAN"
+    assert parse_oracle_metric(MetricType.IP) == "DOT"
+    assert parse_oracle_metric(MetricType.DP) == "DOT"
+    with pytest.raises(ValueError, match="Unsupported metric type"):
+        parse_oracle_metric(MetricType.HAMMING)
 
 
 def test_oracle_hnsw_config():
@@ -144,7 +154,8 @@ def test_oracle_flat_live():
         [0.0, 0.0, 0.0, 1.0],
     ]
     metadata = [1, 2, 3, 4]
-    labels = ["cat", "dog", "cat", "dog"]
+    label_filter = LabelFilter(label_percentage=0.5)
+    labels = ["cat", label_filter.label_value, "cat", label_filter.label_value]
 
     with db.init():
         count, err = db.insert_embeddings(embeddings, metadata, labels_data=labels)
@@ -163,8 +174,8 @@ def test_oracle_flat_live():
         assert len(res_num) > 0
         assert all(idx >= 3 for idx in res_num)
 
-        # StrEqual filter (label = 'dog')
-        db.prepare_filter(LabelFilter(filter_op=FilterOp.StrEqual, label_value="dog"))
+        # StrEqual filter (label = label_filter.label_value)
+        db.prepare_filter(label_filter)
         res_str = db.search_embedding(query=[0.0, 1.0, 0.0, 0.0], k=2)
         assert len(res_str) > 0
         assert set(res_str).issubset({2, 4})
@@ -279,7 +290,14 @@ def test_oracle_ivf_live():
         plan_rows = [row[0] for row in db.cursor.fetchall()]
         plan_text = "\n".join(plan_rows)
         log.info(f"IVF Execution Plan:\n{plan_text}")
-        assert "VECTOR" in plan_text or "PARTITION" in plan_text or "INDEX" in plan_text
+        # The optimizer may prefer a full scan on a tiny table, so assert the IVF
+        # vector index exists rather than that this particular plan uses it.
+        index_name = get_unique_index_name(table_name, IndexType.IVFFlat.value)
+        db.cursor.execute(
+            "SELECT COUNT(*) FROM user_indexes WHERE index_name = UPPER(:1)",
+            (index_name,),
+        )
+        assert db.cursor.fetchone()[0] == 1
 
         # Cleanup
         db._drop_table()
