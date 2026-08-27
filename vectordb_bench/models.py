@@ -202,6 +202,7 @@ class CaseConfigParamType(Enum):
     neighbor_partitions = "neighbor_partitions"
     samples_per_partition = "samples_per_partition"
     min_vectors_per_partition = "min_vectors_per_partition"
+    neighbor_partition_probes = "neighbor_partition_probes"
 
 
 class CustomizedCase(BaseModel):

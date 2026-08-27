@@ -84,11 +84,7 @@ class Oracle(VectorDB):
         sysdba = self.db_config.get("sysdba", False)
 
         dsn = f"{host}:{port}/{service_name}"
-        mode = (
-            oracledb.AUTH_MODE_SYSDBA
-            if sysdba or user.lower() == "sys"
-            else oracledb.DEFAULT_AUTH
-        )
+        mode = oracledb.AUTH_MODE_SYSDBA if sysdba or user.lower() == "sys" else oracledb.DEFAULT_AUTH
 
         conn = oracledb.connect(
             user=user,
@@ -313,11 +309,7 @@ class Oracle(VectorDB):
         if self.filter_bind_key and self.filter_bind_val is not None:
             binds[self.filter_bind_key] = self.filter_bind_val
 
-        index_type = (
-            getattr(self.case_config, "index_param", dict)().get("index_type")
-            if self.case_config
-            else None
-        )
+        index_type = getattr(self.case_config, "index_param", dict)().get("index_type") if self.case_config else None
 
         if (
             index_type == IndexType.Flat.value
@@ -332,15 +324,40 @@ class Oracle(VectorDB):
             FETCH EXACT FIRST :k_val ROWS ONLY
             """
         else:
-            target_acc = search_params.get("search_target_accuracy", 95)
-            binds["target_acc"] = target_acc
-            search_sql = f"""
-            SELECT id
-            FROM {self.table_name}
-            {self.where_clause}
-            ORDER BY VECTOR_DISTANCE(embedding, :q_vec, {metric}) ASC
-            FETCH APPROXIMATE FIRST :k_val ROWS ONLY WITH TARGET ACCURACY :target_acc
-            """
+            # Fixed-effort parameters (EFSEARCH / NEIGHBOR PARTITION PROBES)
+            # take precedence over the adaptive accuracy target when set —
+            # they are the direct analogues of pgvector's ef_search/probes.
+            # PARAMETERS does not accept bind variables, so the values are
+            # validated ints interpolated as literals.
+            ef_search = search_params.get("ef_search")
+            probes = search_params.get("neighbor_partition_probes")
+            if ef_search is not None:
+                search_sql = f"""
+                SELECT id
+                FROM {self.table_name}
+                {self.where_clause}
+                ORDER BY VECTOR_DISTANCE(embedding, :q_vec, {metric}) ASC
+                FETCH APPROXIMATE FIRST :k_val ROWS ONLY
+                WITH TARGET ACCURACY PARAMETERS (EFSEARCH {int(ef_search)})
+                """
+            elif probes is not None:
+                search_sql = f"""
+                SELECT id
+                FROM {self.table_name}
+                {self.where_clause}
+                ORDER BY VECTOR_DISTANCE(embedding, :q_vec, {metric}) ASC
+                FETCH APPROXIMATE FIRST :k_val ROWS ONLY
+                WITH TARGET ACCURACY PARAMETERS (NEIGHBOR PARTITION PROBES {int(probes)})
+                """
+            else:
+                binds["target_acc"] = search_params.get("search_target_accuracy", 95)
+                search_sql = f"""
+                SELECT id
+                FROM {self.table_name}
+                {self.where_clause}
+                ORDER BY VECTOR_DISTANCE(embedding, :q_vec, {metric}) ASC
+                FETCH APPROXIMATE FIRST :k_val ROWS ONLY WITH TARGET ACCURACY :target_acc
+                """
 
         self.cursor.execute(search_sql, binds)
         res = self.cursor.fetchall()
