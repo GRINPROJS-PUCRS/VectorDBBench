@@ -57,6 +57,20 @@ def test_parse_oracle_metric():
         parse_oracle_metric(MetricType.HAMMING)
 
 
+def test_oracle_fixed_effort_search_params():
+    """ef_search / neighbor_partition_probes are the pgvector-parity knobs:
+    set -> fixed-effort PARAMETERS clause; unset or 0 -> adaptive accuracy."""
+    hnsw = OracleHNSWConfig(ef_search=128)
+    assert hnsw.search_param()["ef_search"] == 128
+    assert "ef_search" not in OracleHNSWConfig().search_param()
+    assert "ef_search" not in OracleHNSWConfig(ef_search=0).search_param()
+
+    ivf = OracleIVFConfig(neighbor_partition_probes=22)
+    assert ivf.search_param()["neighbor_partition_probes"] == 22
+    assert "neighbor_partition_probes" not in OracleIVFConfig().search_param()
+    assert "neighbor_partition_probes" not in OracleIVFConfig(neighbor_partition_probes=0).search_param()
+
+
 def test_oracle_hnsw_config():
     c = OracleHNSWConfig(
         metric_type=MetricType.COSINE,
