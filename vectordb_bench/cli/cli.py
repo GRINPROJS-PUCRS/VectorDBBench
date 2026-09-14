@@ -233,6 +233,13 @@ def get_custom_case_config(parameters: dict) -> dict:
             "dataset_with_size_type": dataset_with_size_type,
             "label_percentage": parameters["label_percentage"],
         }
+    elif parameters["case_type"] == "StreamingPerformanceCase":
+        custom_case_config = {
+            "dataset_with_size_type": dataset_with_size_type,
+            "insert_rate": parameters["insert_rate"],
+            "search_stages": parameters["search_stages"],
+            "concurrencies": parameters["streaming_concurrencies"],
+        }
     elif parameters["case_type"] == "CloudPayloadSearchCase":
         custom_case_config = {
             "payload_profile": parameters["payload_profile"],
@@ -382,6 +389,39 @@ class CommonTypedDict(TypedDict):
             default=config.LOAD_CONCURRENCY,
             show_default=True,
             help="Number of concurrent workers for data loading in performance cases (0 = cpu_count)",
+        ),
+    ]
+    insert_rate: Annotated[
+        int,
+        click.option(
+            "--insert-rate",
+            type=int,
+            default=config.STREAMING_INSERT_RATE,
+            show_default=True,
+            help="Rows inserted per second for StreamingPerformanceCase",
+        ),
+    ]
+    search_stages: Annotated[
+        list[str],
+        click.option(
+            "--search-stages",
+            type=str,
+            help="Comma-separated stream-completion fractions (0-1) at which search is sampled, "
+            "for StreamingPerformanceCase",
+            show_default=True,
+            default=",".join(map(str, config.STREAMING_SEARCH_STAGES)),
+            callback=lambda *args: list(map(float, click_arg_split(*args))),
+        ),
+    ]
+    streaming_concurrencies: Annotated[
+        list[str],
+        click.option(
+            "--streaming-concurrencies",
+            type=str,
+            help="Comma-separated concurrency levels for the per-stage search sweep, for StreamingPerformanceCase",
+            show_default=True,
+            default=",".join(map(str, config.STREAMING_CONCURRENCIES)),
+            callback=lambda *args: list(map(int, click_arg_split(*args))),
         ),
     ]
     search_serial: Annotated[
